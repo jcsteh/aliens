@@ -1,18 +1,21 @@
 <!doctype html>
 <html>
 <head>
+<meta charset="UTF-8">
 <title>Aliens</title>
 </head>
 <body>
 <h1>Aliens</h1>
 <div id="intro">
 	<p>By James Teh, based on the Eureka A4 game by Geoff Shang</p>
-	<p>Version 16</p>
+	<p>Version 17</p>
 	<p>
 		You will first hear your position, represented by a pitched beep.
 		When an alien arrives, you will hear a second beep.
 		Move your position left or right with the left or right arrow keys to match the pitch of the alien.
 		Press space to fire before they hit the ground and destroy you!
+		If you are using a touch screen, tap the left of the screen to move left, the right of the screen to move right and the centre to fire.
+		If you are using a mobile touch screen reader, you will need to turn it off after starting the game so the game can receive the taps directly.
 	</p>
 	<p>
 		Most aliens remain stationary.
@@ -27,9 +30,14 @@
 	<button id="start" disabled onclick="start();">Start</button>
 </div>
 <div id="game" role="application" tabindex="-1" aria-labelledby="status"
-		style="width: 100vw; height: 70vh;" hidden>
+		style="width: 100vw; height: 80vh;" hidden>
 	<div id="status"></div>
 	<div>Score: <span id="score"></span></div>
+	<div style="height: 90%; display: flex;">
+		<button id="left" style="flex: 1; height: 100%;">←</button>
+		<button id="fire" style="flex: 1; height: 100%;">🔥</button>
+		<button id="right" style="flex: 1; height: 100%;">→</button>
+	</div>
 </div>
 <div id="gameOver" role="dialog" tabindex="-1" aria-label="Game Over" hidden>
 	<p id="gameOverMessage"></p>
@@ -58,6 +66,10 @@ masterVol.connect(audioCtx.destination);
 const samples = {}; // Map of sample names to audio buffers.
 let playingSample; // Last played sample (might still be playing).
 let pendingTick = null; // Timeout id for the next tick.
+// Timeout id for triggering continual movement via a touch screen.
+let continualTouchTimer = null;
+// Function to call for continual touch movement.
+let continualTouchDir = null;
 
 // The length of beeps. Determines the speed of the game.
 let length;
@@ -76,6 +88,9 @@ const startButton = document.getElementById("start");
 const gameArea = document.getElementById("game");
 const statusArea = document.getElementById("status");
 const scoreArea = document.getElementById("score");
+const leftButton = document.getElementById("left");
+const rightButton = document.getElementById("right");
+const fireButton = document.getElementById("fire");
 const gameOverArea = document.getElementById("gameOver");
 const gameOverMessageArea = document.getElementById("gameOverMessage");
 const startAgainButton = document.getElementById("startAgain");
@@ -251,6 +266,11 @@ let player = new Entity();
 let aliens;
 
 function onPlayerTick() {
+	if (continualTouchDir) {
+		// The user is holding their finger on the left/right button on a touch
+		// screen. We move multiple steps per tick.
+		continualTouchDir.call(player, 4);
+	}
 	player.tick();
 	pendingTick = setTimeout(onAlienTick, length * 1000);
 }
@@ -383,9 +403,30 @@ gameArea.addEventListener("keydown", evt => {
 	}
 }, { capture: true });
 
-gameArea.addEventListener("click", evt => {
+function onLeftOrRightTouchStart(evt, dir) {
+	dir.call(player);
+	// If the user holds their finger down, trigger continual movement.
+	continualTouchTimer = setTimeout(() => continualTouchDir = dir, 500);
+	evt.preventDefault();
+}
+
+function onLeftOrRightTouchEnd(evt) {
+	clearTimeout(continualTouchTimer);
+	continualTouchTimer = null;
+	continualTouchDir = null;
+	evt.preventDefault();
+}
+
+leftButton.addEventListener("touchstart", evt =>
+	onLeftOrRightTouchStart(evt, player.down));
+leftButton.addEventListener("touchend", onLeftOrRightTouchEnd);
+rightButton.addEventListener("touchstart", evt =>
+	onLeftOrRightTouchStart(evt, player.up));
+rightButton.addEventListener("touchend", onLeftOrRightTouchEnd);
+fireButton.addEventListener("touchstart", evt => {
 	onFire();
-}, { capture: true });
+	evt.preventDefault();
+});
 
 /*
  * This function sets up and starts the game. The game then alternates
