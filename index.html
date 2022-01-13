@@ -1,0 +1,457 @@
+<!doctype html>
+<html>
+<head>
+<title>Aliens</title>
+</head>
+<body>
+<h1>Aliens</h1>
+<div id="intro">
+	<p>By James Teh, based on the Eureka A4 game by Geoff Shang</p>
+	<p>Version 16</p>
+	<p>
+		You will first hear your position, represented by a pitched beep.
+		When an alien arrives, you will hear a second beep.
+		Move your position left or right with the left or right arrow keys to match the pitch of the alien.
+		Press space to fire before they hit the ground and destroy you!
+	</p>
+	<p>
+		Most aliens remain stationary.
+		However, you will occasionally encounter commanders which move from left to right, increasing in pitch.
+	</p>
+	<p>
+		As you level up, you must confront more aliens at once and you will encounter more commanders.
+		In the higher levels, the game will speed up.
+	</p>
+	<p>If you are using a screen reader, you can announce your score at any time during the game by pressing s.</p>
+	<p>Every 200 points, you can gain an extra life, but only up to a maximum of 5 lives.</p>
+	<button id="start" disabled onclick="start();">Start</button>
+</div>
+<div id="game" role="application" tabindex="-1" aria-labelledby="status"
+		style="width: 100vw; height: 70vh;" hidden>
+	<div id="status"></div>
+	<div>Score: <span id="score"></span></div>
+</div>
+<div id="gameOver" role="dialog" tabindex="-1" aria-label="Game Over" hidden>
+	<p id="gameOverMessage"></p>
+	<button id="startAgain" onclick="start();">Start again</button>
+</div>
+<div id="announce" aria-live="polite"
+	style="position: absolute; left: -10000px;"></div>
+
+<script>
+const BASE_LENGTH = 0.1; // The starting length of beeps.
+// How much the length decreases each level.
+const LEVEL_LENGTH_DECREMENT = 0.010;
+// Minimum number of ticks to wait between aliens.
+const MIN_ALIEN_WAITS = 8;
+const MAX_ALIEN_WAITS = 18;
+const ALIEN_TRIES = 30; // How many ticks the player has to hit the alien.
+const MAX_LIVES = 5;
+const POINTS_FOR_NEW_LIFE = 200;
+const BASE_FREQ = 130.8; // C2
+const MIN_NOTE = 0; // C3
+const MAX_NOTE = 18; // C6; each note is a whole tone
+
+const audioCtx = new AudioContext();
+const masterVol = new GainNode(audioCtx, { gain: 0.3 } );
+masterVol.connect(audioCtx.destination);
+const samples = {}; // Map of sample names to audio buffers.
+let playingSample; // Last played sample (might still be playing).
+let pendingTick = null; // Timeout id for the next tick.
+let tilt = null; // The angle at which the device is tilted.
+
+// The length of beeps. Determines the speed of the game.
+let length;
+let level;
+let requiredHits; // The number of hits required this level.
+let maxAliens; // The maximum number of simultaneous aliens this level.
+// The maximum number of commanders that can be encountered this level.
+let maxCommanders;
+let hits; // The number of hits the player achieved this level.
+let commanders; // The number of commanders encountered so far this level.
+let points;
+let lives;
+
+const introArea = document.getElementById("intro");
+const startButton = document.getElementById("start");
+const gameArea = document.getElementById("game");
+const statusArea = document.getElementById("status");
+const scoreArea = document.getElementById("score");
+const gameOverArea = document.getElementById("gameOver");
+const gameOverMessageArea = document.getElementById("gameOverMessage");
+const startAgainButton = document.getElementById("startAgain");
+const announceArea = document.getElementById("announce");
+
+async function loadSample(name) {
+	const response = await fetch(`${name}.mp3`);
+	const arrayBuffer = await response.arrayBuffer();
+	const buffer = await audioCtx.decodeAudioData(arrayBuffer);
+	samples[name] = buffer;
+	return buffer;
+}
+
+function playSample(name, options={
+	stopPrevious: true,
+	delay: 0,
+	pan: 0,
+}) {
+	if (options.stopPrevious && playingSample) {
+		playingSample.stop();
+	}
+	const source = new AudioBufferSourceNode(audioCtx,
+		{ buffer: samples[name] });
+	let dest;
+	if (options.pan) {
+		dest = new StereoPannerNode(audioCtx, { pan: options.pan });
+		dest.connect(masterVol);
+	} else {
+		dest = masterVol;
+	}
+	source.connect(dest);
+	source.start(audioCtx.currentTime + options.delay);
+	playingSample = source;
+	return new Promise(resolve => {
+		source.addEventListener("ended", () => resolve());
+	});
+}
+
+class Entity {
+	constructor() {
+		this.oscType = "triangle";
+		this.audioDest = masterVol;
+	}
+
+	set note(note) {
+		this._note = note;
+		// Whole-tone scale from our base frequency.
+		this.freq = BASE_FREQ * 2 ** (note / 6);
+	}
+
+	get note() {
+		return this._note;
+	}
+
+	play() {
+		this.osc = new OscillatorNode(audioCtx,
+			{ type: this.oscType, frequency: this.freq });
+		this.osc.connect(this.audioDest);
+		this.osc.start();
+		this.osc.stop(audioCtx.currentTime + length);
+	}
+
+	down(amount=1) {
+		this.note = Math.max(this._note - amount, MIN_NOTE);
+	}
+
+	up(amount=1) {
+		this.note = Math.min(this._note + amount, MAX_NOTE);
+	}
+
+	tick() {
+		this.play();
+	}
+}
+
+class Alien extends Entity {
+	constructor(pan) {
+		super();
+		this.oscType = "square";
+		this.pan = pan;
+		let vol = new GainNode(audioCtx, { gain: 0.5 } );
+		vol.connect(masterVol);
+		this.audioDest = new StereoPannerNode(audioCtx, { pan: pan });
+		this.audioDest.connect(vol);
+		this.ticks = 0;
+	}
+
+	reset() {
+		// Wait a random number of ticks before appearing.
+		let ticks = -(MIN_ALIEN_WAITS + Math.round(Math.random() *
+			(MAX_ALIEN_WAITS - MIN_ALIEN_WAITS)));
+		// Don't let two aliens appear too close together in time.
+		if (willAlienAppearNear(ticks)) {
+			this.ticks = getFurthestWaitingAlienTicks() - MIN_ALIEN_WAITS;
+		} else {
+			this.ticks = ticks;
+		}
+		// Randomly bring in a commander, but only if there isn't one already and we
+		// haven't reached maxCommanders.
+		this.isCommander = commanders < maxCommanders && !hasActiveCommander() &&
+			Math.round(Math.random());
+		if (this.isCommander) {
+			++commanders;
+			// Commanders start from the bottom and move up.
+			this.note = 0;
+		} else {
+			this.note = Math.floor(Math.random() * MAX_NOTE);
+		}
+	}
+
+	tick() {
+		++this.ticks;
+		if (this.ticks < 0) {
+			return; // Waiting to appear.
+		}
+		if (this.isCommander) {
+			if (this.ticks == MAX_NOTE + 1) {
+				// Commanders can't kill.
+				this.reset();
+				return;
+			}
+			if (this.ticks > 0) {
+				++this.note;
+			}
+		} else if (this.ticks == ALIEN_TRIES) {
+			setTimeout(killed, 0);
+			return;
+		}
+		this.play();
+	}
+}
+
+function willAlienAppearNear(ticks) {
+	for (let a = 0; a < maxAliens; ++a) {
+		const alien = aliens[a];
+		if (alien.ticks >= 0) {
+			continue; // Already appeared.
+		}
+		if (Math.abs(alien.ticks - ticks) < 5) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function getFurthestWaitingAlienTicks() {
+	let min = 0;
+	for (let a = 0; a < maxAliens; ++a) {
+		const alien = aliens[a];
+		if (alien.ticks >= 0) {
+			continue; // Already appeared.
+		}
+		if (alien.ticks < min) {
+			min = alien.ticks;
+		}
+	}
+	return min;
+}
+
+function hasActiveCommander() {
+	for (let a = 0; a < maxAliens; ++a) {
+		if (aliens[a].isCommander) {
+			return true;
+		}
+	}
+	return false;
+}
+
+let player = new Entity();
+// An array of Alien instances. This contains 4 instances throughout the game
+// even if the maximum is lower for this level. maxAliens determines how many
+// of these will be used.
+let aliens;
+
+function onPlayerTick() {
+	if (tilt) {
+		let amount = Math.floor(Math.min(Math.abs(tilt), 30) / 10);
+		if (tilt < 0) {
+			player.down(amount);
+		} else {
+			player.up(amount);
+		}
+	}
+	player.tick();
+	pendingTick = setTimeout(onAlienTick, length * 1000);
+}
+
+function onAlienTick() {
+	for (let a = 0; a < maxAliens; ++a) {
+		aliens[a].tick();
+	}
+	pendingTick = setTimeout(onPlayerTick, length * 1000);
+}
+
+function suspend() {
+	clearTimeout(pendingTick);
+	pendingTick = null;
+}
+
+function resume() {
+	setTimeout(onPlayerTick, 0);
+}
+
+function updateStatus() {
+	statusArea.textContent = `Level ${level + 1}, ${lives} lives`;
+	scoreArea.textContent = points;
+}
+
+async function nextLevel() {
+	++level;
+	hits = 0;
+	commanders = 0;
+	if (level == 1) {
+		requiredHits = 30;
+	} else if (level == 2) {
+		requiredHits = 60;
+	} else if (level == 3) {
+		requiredHits = 100;
+	}
+	if (level <= 3) {
+		++maxAliens;
+		++maxCommanders;
+	} else {
+		length -= LEVEL_LENGTH_DECREMENT;
+	}
+	for (let a = 0; a < maxAliens; ++a) {
+		aliens[a].reset();
+	}
+	updateStatus();
+	suspend();
+	await playSample("nextLevel");
+	resume();
+}
+
+async function onFire() {
+	if (!pendingTick) { // Suspended
+		return;
+	}
+	playSample("fire");
+	for (let a = 0; a < maxAliens; ++a) {
+		let alien = aliens[a];
+		if (player.note == alien.note) {
+			playSample("hit", { delay: 0.15, pan: alien.pan });
+			const oldPoints = points;
+			points += alien.isCommander ? maxAliens * 10 : maxAliens;
+			alien.reset();
+			++hits;
+			if (Math.floor(points / POINTS_FOR_NEW_LIFE) >
+					Math.floor(oldPoints / POINTS_FOR_NEW_LIFE) &&
+					lives < MAX_LIVES) {
+				++lives;
+				suspend();
+				updateStatus();
+				await playSample("newLife");
+				// If we're calling nextLevel below, don't resume here, since nextLevel
+				// will do that.
+				if (hits != requiredHits) {
+					resume();
+				}
+			}
+			if (hits == requiredHits) {
+				nextLevel();
+			}
+			break;
+		}
+	}
+}
+
+async function killed() {
+	--lives;
+	for (let alien of aliens) {
+		alien.reset();
+	}
+	suspend();
+	if (lives == 0) {
+		await playSample("killed");
+		gameOverMessageArea.textContent = `Game over! :( You reached level ${level + 1} with ${points} points.`;
+		gameArea.hidden = true;
+		// Don't let the user dismiss this dialog too fast accidentally.
+		startAgainButton.disabled = true;
+		gameOverArea.hidden = false;
+		gameOverArea.focus();
+		await playSample("gameOver");
+		setTimeout(stop, 500);
+		return;
+	}
+	updateStatus();
+	await playSample("killed");
+	resume();
+}
+
+function announceScore() {
+	announceArea.textContent = points;
+	setTimeout(() => announceArea.textContent = "", 300);
+}
+
+gameArea.addEventListener("keydown", evt => {
+	switch (evt.key) {
+		case "ArrowLeft":
+		case "ArrowDown":
+			player.down();
+			break;
+		case "ArrowRight":
+		case "ArrowUp":
+			player.up();
+			break;
+		case " ":
+			onFire();
+			break;
+		case "s":
+			announceScore();
+			break;
+	}
+}, { capture: true });
+
+window.addEventListener("deviceorientation", evt => {
+	tilt = evt.gamma;
+}, { capture: true });
+
+gameArea.addEventListener("click", evt => {
+	onFire();
+}, { capture: true });
+
+/*
+ * This function sets up and starts the game. The game then alternates
+ * between onPlayerTick and onAlienTick using setTimeout. Most
+ * events are processed immediately outside of a tick. Certain events might
+ * temporarily suspend() and resume() the ticks.
+ */
+async function start() {
+	if (DeviceOrientationEvent.requestPermission) {
+		await DeviceOrientationEvent.requestPermission();
+	}
+	introArea.hidden = true;
+	gameOverArea.hidden = true;
+	gameArea.hidden = false;
+	gameArea.focus();
+	player.note = MAX_NOTE / 2;
+	aliens = [
+		// Pan the four possible aliens across the stereo field.
+		new Alien(-0.8),
+		new Alien(0.8),
+		new Alien(-0.4),
+		new Alien(0.4)
+	];
+	maxAliens = 1;
+	aliens[0].reset();
+	level = 0;
+	length = BASE_LENGTH;
+	requiredHits = 10;
+	maxCommanders = 1;
+	commanders = 0;
+	lives = 3;
+	hits = 0;
+	points = 0;
+	updateStatus();
+	onPlayerTick();
+}
+
+function stop() {
+	clearTimeout(pendingTick);
+	startAgainButton.disabled = false;
+}
+
+async function init() {
+	let promises = [];
+	for (const name of
+			["fire", "gameOver", "hit", "killed", "newLife", "nextLevel"]) {
+		promises.push(loadSample(name));
+	}
+	await Promise.all(promises);
+	startButton.disabled = false;
+}
+
+init();
+</script>
+</body>
+</html>
