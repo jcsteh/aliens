@@ -58,7 +58,6 @@ masterVol.connect(audioCtx.destination);
 const samples = {}; // Map of sample names to audio buffers.
 let playingSample; // Last played sample (might still be playing).
 let pendingTick = null; // Timeout id for the next tick.
-let tilt = null; // The angle at which the device is tilted.
 
 // The length of beeps. Determines the speed of the game.
 let length;
@@ -252,14 +251,6 @@ let player = new Entity();
 let aliens;
 
 function onPlayerTick() {
-	if (tilt) {
-		let amount = Math.floor(Math.min(Math.abs(tilt), 30) / 10);
-		if (tilt < 0) {
-			player.down(amount);
-		} else {
-			player.up(amount);
-		}
-	}
 	player.tick();
 	pendingTick = setTimeout(onAlienTick, length * 1000);
 }
@@ -392,10 +383,6 @@ gameArea.addEventListener("keydown", evt => {
 	}
 }, { capture: true });
 
-window.addEventListener("deviceorientation", evt => {
-	tilt = evt.gamma;
-}, { capture: true });
-
 gameArea.addEventListener("click", evt => {
 	onFire();
 }, { capture: true });
@@ -407,9 +394,6 @@ gameArea.addEventListener("click", evt => {
  * temporarily suspend() and resume() the ticks.
  */
 async function start() {
-	if (DeviceOrientationEvent.requestPermission) {
-		await DeviceOrientationEvent.requestPermission();
-	}
 	introArea.hidden = true;
 	gameOverArea.hidden = true;
 	gameArea.hidden = false;
