@@ -8,7 +8,7 @@
 <h1>Aliens</h1>
 <div id="intro">
 	<p>Copyright 2022 James Teh, based on the Eureka A4 game by Geoff Shang</p>
-	<p>Version 18</p>
+	<p>Version 19</p>
 	<p>
 		You will first hear your position, represented by a pitched beep.
 		When an alien arrives, you will hear a second beep.
@@ -99,6 +99,8 @@ let hits; // The number of hits the player achieved this level.
 let commanders; // The number of commanders encountered so far this level.
 let points;
 let lives;
+let totalShipsHit;
+let totalCommandersHit;
 
 const introArea = document.getElementById("intro");
 const startButton = document.getElementById("start");
@@ -350,6 +352,11 @@ async function onFire() {
 			points += alien.isCommander ? maxAliens * 10 : maxAliens;
 			alien.reset();
 			++hits;
+			if (alien.isCommander) {
+				++totalCommandersHit;
+			} else {
+				++totalShipsHit;
+			}
 			if (Math.floor(points / POINTS_FOR_NEW_LIFE) >
 					Math.floor(oldPoints / POINTS_FOR_NEW_LIFE) &&
 					lives < MAX_LIVES) {
@@ -373,7 +380,7 @@ async function killed() {
 	suspend();
 	if (lives == 0) {
 		await playSample("killed");
-		gameOverMessageArea.textContent = `Game over! :( You reached level ${level + 1} with ${points} points.`;
+		gameOverMessageArea.textContent = `Game over! :( You reached level ${level + 1} with ${points} points. You hit ${totalShipsHit} ships and ${totalCommandersHit} commanders.`;
 		gameArea.hidden = true;
 		// Don't let the user dismiss this dialog too fast accidentally.
 		startAgainButton.disabled = true;
@@ -466,6 +473,8 @@ async function start() {
 	lives = 3;
 	hits = 0;
 	points = 0;
+	totalShipsHit = 0;
+	totalCommandersHit = 0;
 	audioCtx.resume();
 	updateStatus();
 	setTimeout(onPlayerTick, 100);
