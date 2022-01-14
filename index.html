@@ -69,7 +69,7 @@ const audioCtx = new AudioContext();
 const masterVol = new GainNode(audioCtx, { gain: 0.3 } );
 masterVol.connect(audioCtx.destination);
 const samples = {}; // Map of sample names to audio buffers.
-let playingSample; // Last played sample (might still be playing).
+let playingFireSample; // Last played fire sample (might still be playing).
 let pendingTick = null; // Timeout id for the next tick.
 // Timeout id for triggering continual movement via a touch screen.
 let continualTouchTimer = null;
@@ -110,13 +110,9 @@ async function loadSample(name) {
 }
 
 function playSample(name, options={
-	stopPrevious: true,
 	delay: 0,
 	pan: 0,
 }) {
-	if (options.stopPrevious && playingSample) {
-		playingSample.stop();
-	}
 	const source = new AudioBufferSourceNode(audioCtx,
 		{ buffer: samples[name] });
 	let dest;
@@ -128,10 +124,11 @@ function playSample(name, options={
 	}
 	source.connect(dest);
 	source.start(audioCtx.currentTime + options.delay);
-	playingSample = source;
-	return new Promise(resolve => {
+	const promise = new Promise(resolve => {
 		source.addEventListener("ended", () => resolve());
 	});
+	promise.stop = source.stop.bind(source);
+	return promise;
 }
 
 class Entity {
@@ -331,7 +328,10 @@ async function onFire() {
 	if (!pendingTick) { // Suspended
 		return;
 	}
-	playSample("fire");
+	if (playingFireSample) {
+		playingFireSample.stop();
+	}
+	playingFireSample = playSample("fire");
 	for (let a = 0; a < maxAliens; ++a) {
 		let alien = aliens[a];
 		if (player.note == alien.note) {
@@ -344,14 +344,8 @@ async function onFire() {
 					Math.floor(oldPoints / POINTS_FOR_NEW_LIFE) &&
 					lives < MAX_LIVES) {
 				++lives;
-				suspend();
 				updateStatus();
-				await playSample("newLife");
-				// If we're calling nextLevel below, don't resume here, since nextLevel
-				// will do that.
-				if (hits != requiredHits) {
-					resume();
-				}
+				playSample("newLife");
 			}
 			if (hits == requiredHits) {
 				nextLevel();
