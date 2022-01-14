@@ -334,7 +334,7 @@ async function onFire() {
 	playingFireSample = playSample("fire");
 	for (let a = 0; a < maxAliens; ++a) {
 		let alien = aliens[a];
-		if (player.note == alien.note) {
+		if (player.note == alien.note && alien.ticks >= 0) {
 			playSample("hit", { delay: 0.15, pan: alien.pan });
 			const oldPoints = points;
 			points += alien.isCommander ? maxAliens * 10 : maxAliens;
