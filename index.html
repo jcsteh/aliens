@@ -458,7 +458,7 @@ async function start() {
 	points = 0;
 	audioCtx.resume();
 	updateStatus();
-	onPlayerTick();
+	setTimeout(onPlayerTick, 100);
 }
 
 function stop() {
