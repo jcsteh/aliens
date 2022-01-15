@@ -231,6 +231,9 @@ class Alien extends Entity {
 				++this.note;
 			}
 		} else if (this.ticks == ALIEN_TRIES) {
+			// onAlienTick() will schedule a new tick after we return and killed()
+			// calls suspend(). Therefore, killed() must run *after* onAlienTick()
+			// returns.
 			setTimeout(killed, 0);
 			return;
 		}
