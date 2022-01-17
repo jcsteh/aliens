@@ -8,7 +8,7 @@
 <h1>Aliens</h1>
 <div id="intro">
 	<p>Copyright 2022 James Teh, based on the Eureka A4 game by Geoff Shang</p>
-	<p>Version 19</p>
+	<p>Version 20</p>
 	<p>
 		You will first hear your position, represented by a pitched beep.
 		When an alien arrives, you will hear a second beep.
@@ -354,13 +354,13 @@ async function onFire() {
 			playSample("hit", { delay: 0.15, pan: alien.pan });
 			const oldPoints = points;
 			points += alien.isCommander ? maxAliens * 10 : maxAliens;
-			alien.reset();
 			++hits;
 			if (alien.isCommander) {
 				++totalCommandersHit;
 			} else {
 				++totalShipsHit;
 			}
+			alien.reset();
 			if (Math.floor(points / POINTS_FOR_NEW_LIFE) >
 					Math.floor(oldPoints / POINTS_FOR_NEW_LIFE) &&
 					lives < MAX_LIVES) {
