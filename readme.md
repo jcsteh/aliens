@@ -1,6 +1,6 @@
 # Aliens: An Audio Game
 
-- Copyright 2022 James Teh
+- Copyright 2025 James Teh
 - Based on the Eureka A4 game by Geoff Shang
 - License: GNU General Public License
 
