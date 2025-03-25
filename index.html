@@ -51,7 +51,7 @@
 <h1>Aliens</h1>
 <div id="intro">
 	<p>Copyright 2025 James Teh, based on the Eureka A4 game by Geoff Shang</p>
-	<p>Version 22</p>
+	<p>Version 23</p>
 	<p>
 		You will first hear your position, represented by a pitched beep.
 		When an alien arrives, you will hear a second beep.
@@ -110,6 +110,7 @@ const POINTS_FOR_NEW_LIFE = 200;
 const BASE_FREQ = 130.8; // C2
 const MIN_NOTE = 0; // C3
 const MAX_NOTE = 18; // C6; each note is a whole tone
+const FADE_LENGTH = 0.010; // The length of audio fades to prevent clicks.
 
 const audioCtx = new AudioContext();
 const masterVol = new GainNode(audioCtx, { gain: 0.3 } );
@@ -227,11 +228,18 @@ class Entity {
 	}
 
 	play(freq) {
+		const start = audioCtx.currentTime;
+		const end = start + length;
+		// Fade out the beep a little to prevent clicks.
+		const gain = new GainNode(audioCtx, { gain: 1 });
+		gain.connect(this.audioDest);
+		gain.gain.exponentialRampToValueAtTime(1, end - FADE_LENGTH);
+		gain.gain.exponentialRampToValueAtTime(0.01, end);
 		this.osc = new OscillatorNode(audioCtx, { frequency: freq });
 		this.osc.setPeriodicWave(this.oscWave);
-		this.osc.connect(this.audioDest);
+		this.osc.connect(gain);
 		this.osc.start();
-		this.osc.stop(audioCtx.currentTime + length);
+		this.osc.stop(end);
 	}
 
 	down(amount=1) {
