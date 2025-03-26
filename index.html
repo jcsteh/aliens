@@ -10,6 +10,15 @@
 		font-size: xx-large;
 		transition: opacity 200ms;
 	}
+	#heart {
+		display: inline-block;
+		font-size: xxx-large;
+		transform: scale(60%);
+		transition: transform 100ms;
+	}
+	#heart.larger {
+		transform: scale(100%);
+	}
 	#nextLevel {
 		position: absolute;
 		top: 30vh;
@@ -80,7 +89,10 @@
 </div>
 <div id="game" role="application" tabindex="-1" aria-labelledby="status"
 		style="width: 100vw; height: 90vh;" hidden>
-	<div id="status"></div>
+	<div>
+		<span id="status"></span>
+		<span id="heart">💗</span>
+	</div>
 	<div id="nextLevel" class="hidden" aria-hidden="true"></div>
 	<div id="scoreContainer">Score: <span id="score"></span></div>
 	<div style="height: 30%; display: flex;">
@@ -153,6 +165,7 @@ const introArea = document.getElementById("intro");
 const startButton = document.getElementById("start");
 const gameArea = document.getElementById("game");
 const statusArea = document.getElementById("status");
+const heartArea = document.getElementById("heart");
 const scoreArea = document.getElementById("score");
 const nextLevelArea = document.getElementById("nextLevel");
 const leftButton = document.getElementById("left");
@@ -468,6 +481,9 @@ async function onFire() {
 				++lives;
 				updateStatus();
 				playSample("newLife");
+				// Grow the heart briefly, then have it return to its original size.
+				heartArea.classList.add("larger");
+				setTimeout(() => heartArea.classList.remove("larger"), 200);
 			}
 			if (hits == requiredHits) {
 				nextLevel();
@@ -496,7 +512,11 @@ async function killed() {
 		return;
 	}
 	updateStatus();
+	heartArea.textContent = "💔";
+	heartArea.classList.add("larger");
 	await playSample("killed");
+	heartArea.classList.remove("larger");
+	setTimeout(() => heartArea.textContent = "💗", 100);
 	resume();
 }
 
