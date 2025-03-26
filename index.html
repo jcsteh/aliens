@@ -462,6 +462,10 @@ async function onFire() {
 		playingFireSample.stop();
 	}
 	playingFireSample = playSample("fire");
+	// Flash the cell briefly.
+	const cell = visualArea.children[player.note];
+	cell.style["background-color"] = "#FFFFE0";
+	setTimeout(() => cell.style["background-color"] = "", 150);
 	for (let a = 0; a < maxAliens; ++a) {
 		let alien = aliens[a];
 		if (player.note == alien.note && alien.ticks >= 0) {
