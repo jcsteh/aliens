@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <title>Aliens</title>
 <style>
+	#game {
+		width: 100vw;
+		height: 90vh;
+	}
+	#game:focus-visible {
+		outline: none;
+	}
 	#status {
 		text-align: center;
 		font-weight: bold;
@@ -87,8 +94,7 @@
 	<p>If you are using an iPhone on speaker, ensure your phone is not set to silent.</p>
 	<button id="start" disabled onclick="start();">Start</button>
 </div>
-<div id="game" role="application" tabindex="-1" aria-labelledby="status"
-		style="width: 100vw; height: 90vh;" hidden>
+<div id="game" role="application" tabindex="-1" aria-labelledby="status" hidden>
 	<div>
 		<span id="status"></span>
 		<span id="heart">💗</span>
