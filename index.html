@@ -67,7 +67,7 @@
 <div id="intro">
 	<h1>Aliens</h1>
 	<p>Copyright 2025 James Teh, based on the Eureka A4 game by Geoff Shang</p>
-	<p>Version 23</p>
+	<p>Version 24</p>
 	<p>
 		You will first hear your position, represented by a pitched beep.
 		When an alien arrives, you will hear a second beep.
@@ -305,10 +305,11 @@ class Alien extends Entity {
 			++commanders;
 			// Commanders start from the bottom and move up.
 			this.note = 0;
+			this.visualNode.textContent = "👾";
 		} else {
 			this.note = Math.floor(Math.random() * MAX_NOTE);
+			this.visualNode.textContent = "🛸";
 		}
-		this.visualNode.textContent = "🛸";
 		// We want the alien to return to the top immediately, ready for its next
 		// appearance. Disable transition of top.
 		this.visualNode.style.transition = "opacity 20ms";
@@ -486,6 +487,7 @@ async function onFire() {
 			playSample("hit", { delay: 0.15, pan: alien.pan });
 			const oldPoints = points;
 			points += alien.isCommander ? maxAliens * 10 : maxAliens;
+			updateStatus();
 			++hits;
 			if (alien.isCommander) {
 				++totalCommandersHit;
