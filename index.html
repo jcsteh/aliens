@@ -278,7 +278,7 @@ class Alien extends Entity {
 		this.ticks = 0;
 	}
 
-	reset() {
+	resetTicks() {
 		// Wait a random number of ticks before appearing.
 		let ticks = -(MIN_ALIEN_WAITS + Math.round(Math.random() *
 			(MAX_ALIEN_WAITS - MIN_ALIEN_WAITS)));
@@ -288,6 +288,9 @@ class Alien extends Entity {
 		} else {
 			this.ticks = ticks;
 		}
+	}
+
+	resetNote() {
 		// Randomly bring in a commander, but only if there isn't one already and we
 		// haven't reached maxCommanders.
 		this.isCommander = commanders < maxCommanders && !hasActiveCommander() &&
@@ -306,6 +309,11 @@ class Alien extends Entity {
 		this.visualNode.style.top = "0%";
 		// Hide the alien until it is ready to appear.
 		this.visualNode.classList.add("hidden");
+	}
+
+	reset() {
+		this.resetTicks();
+		this.resetNote();
 	}
 
 	tick() {
@@ -478,7 +486,10 @@ async function onFire() {
 			} else {
 				++totalShipsHit;
 			}
-			alien.reset();
+			// Briefly show an explosion in place of the alien we just hit.
+			alien.resetTicks();
+			alien.visualNode.textContent = "💥";
+			setTimeout(() => alien.resetNote(), 150);
 			if (Math.floor(points / POINTS_FOR_NEW_LIFE) >
 					Math.floor(oldPoints / POINTS_FOR_NEW_LIFE) &&
 					lives < MAX_LIVES) {
