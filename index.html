@@ -11,14 +11,16 @@
 	#game:focus-visible {
 		outline: none;
 	}
+	#statusContainer {
+		display: flex;
+		justify-content: center;
+	}
 	#status {
-		text-align: center;
 		font-weight: bold;
 		font-size: xx-large;
 		transition: opacity 200ms;
 	}
 	#heart {
-		display: inline-block;
 		font-size: xxx-large;
 		transform: scale(60%);
 		transition: transform 100ms;
@@ -95,9 +97,9 @@
 	<button id="start" disabled onclick="start();">Start</button>
 </div>
 <div id="game" role="application" tabindex="-1" aria-labelledby="status" hidden>
-	<div>
-		<span id="status"></span>
-		<span id="heart">💗</span>
+	<div id="statusContainer">
+		<div id="status"></div>
+		<div id="heart">💗</div>
 	</div>
 	<div id="nextLevel" class="hidden" aria-hidden="true"></div>
 	<div id="scoreContainer">Score: <span id="score"></span></div>
